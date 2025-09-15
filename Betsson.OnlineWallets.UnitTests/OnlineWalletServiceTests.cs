@@ -73,6 +73,24 @@ public class OnlineWalletServiceTests
     }
 
     [Fact]
+    public async Task GetBalanceAsync_RepositoryThrows_PropagatesException()
+    {
+        // Arrange
+        var mockRepo = new Mock<IOnlineWalletRepository>();
+        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
+                .ThrowsAsync(new InvalidOperationException("Database error"));
+
+        var service = new OnlineWalletService(mockRepo.Object);
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetBalanceAsync());
+
+        // Assert
+        Assert.Equal("Database error", exception.Message);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
+    }
+
+    [Fact]
     public async Task DepositFundsAsync_ValidDeposit_UpdatesBalance()
     {
         // Arrange
@@ -165,5 +183,28 @@ public class OnlineWalletServiceTests
         // Assert
         Assert.Equal("Database error", exception.Message);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DepositFundsAsync_GetLastOnlineWalletEntryThrows_PropagatesException()
+    {
+        // Arrange
+        var mockRepo = new Mock<IOnlineWalletRepository>();
+        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
+                .ThrowsAsync(new InvalidOperationException("GetLast failed"));
+
+        var service = new OnlineWalletService(mockRepo.Object);
+        var deposit = new Deposit
+        {
+            Amount = 10.0m
+        };
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.DepositFundsAsync(deposit));
+
+        // Assert
+        Assert.Equal("GetLast failed", exception.Message);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
+        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
 }
