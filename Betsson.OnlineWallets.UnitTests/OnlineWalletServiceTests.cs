@@ -131,7 +131,7 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal(300.0m, newBalance.Amount);
-        mockRepo.Verify(r => r.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
+        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
             entry.Amount == 0.0m &&
             entry.BalanceBefore == 300.0m
         )), Times.Once);
@@ -151,7 +151,7 @@ public class OnlineWalletServiceTests
         mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
                 .ReturnsAsync(lastEntry);
         mockRepo.Setup(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()))
-                .ThrowsAsync(new Exception("Database error"));
+                .ThrowsAsync(new InvalidOperationException("Database error"));
 
         var service = new OnlineWalletService(mockRepo.Object);
         var deposit = new Deposit
@@ -160,7 +160,7 @@ public class OnlineWalletServiceTests
         };
 
         // Act
-        var exception = await Assert.ThrowsAsync<Exception>(() => service.DepositFundsAsync(deposit));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.DepositFundsAsync(deposit));
 
         // Assert
         Assert.Equal("Database error", exception.Message);
