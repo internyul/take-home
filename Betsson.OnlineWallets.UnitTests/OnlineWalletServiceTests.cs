@@ -274,7 +274,7 @@ public class OnlineWalletServiceTests
     }
 
     [Fact]
-    public async Task WithdrawFundsAsync_InsufficientBalance_ThrowsInvalidOperationException()
+    public async Task WithdrawFundsAsync_InsufficientBalance_ThrowsInsufficientBalanceException()
     {
         // Arrange
         var mockRepo = new Mock<IOnlineWalletRepository>();
@@ -294,7 +294,7 @@ public class OnlineWalletServiceTests
             Amount = 200.0m
         };
 
-        //Act
+        // Act
         var exception = await Assert.ThrowsAsync<InsufficientBalanceException>(() => service.WithdrawFundsAsync(withdrawal));
 
         // Assert
