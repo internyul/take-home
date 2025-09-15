@@ -59,12 +59,13 @@ public class OnlineWalletServiceTests
         };
         mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
                 .ReturnsAsync(lastEntry);
+
         var service = new OnlineWalletService(mockRepo.Object);
 
         // Act
         var balance = await service.GetBalanceAsync();
 
         // Assert
-        Assert.Equal(99.25m, balance.Amount);   
+        Assert.Equal(99.25m, balance.Amount);
     }
 }
