@@ -299,6 +299,7 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal("Invalid withdrawal amount. There are insufficient funds.", exception.Message);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
 
@@ -328,6 +329,7 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal("Database error during withdrawal", exception.Message);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Once);
     }
 
@@ -350,6 +352,29 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal("GetLast failed", exception.Message);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
+        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task WithdrawFundsAsync_NoPreviousTransactions_ThrowsInsufficientBalanceException()
+    {
+        // Arrange
+        var mockRepo = new Mock<IOnlineWalletRepository>();
+        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
+                .ReturnsAsync((OnlineWalletEntry?)null);
+
+        var service = new OnlineWalletService(mockRepo.Object);
+        var withdrawal = new Withdrawal
+        {
+            Amount = 10.0m
+        };
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InsufficientBalanceException>(() => service.WithdrawFundsAsync(withdrawal));
+
+        // Assert
+        Assert.Equal("Invalid withdrawal amount. There are insufficient funds.", exception.Message);
         mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
