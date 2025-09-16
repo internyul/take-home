@@ -1,5 +1,8 @@
+using System.Runtime.CompilerServices;
 using Betsson.OnlineWallets.Data.Models;
 using Microsoft.EntityFrameworkCore;
+
+[assembly: InternalsVisibleTo("Betsson.OnlineWallets.ApiTests")]
 
 namespace Betsson.OnlineWallets.Data
 {
