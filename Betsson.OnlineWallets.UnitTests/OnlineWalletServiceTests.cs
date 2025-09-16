@@ -301,4 +301,56 @@ public class OnlineWalletServiceTests
         Assert.Equal("Invalid withdrawal amount. There are insufficient funds.", exception.Message);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
+
+    [Fact]
+    public async Task WithdrawFundsAsync_RepositoryThrows_PropagatesException()
+    {
+        // Arrange
+        var mockRepo = new Mock<IOnlineWalletRepository>();
+        var lastEntry = new OnlineWalletEntry
+        {
+            Amount = 100.0m,
+            BalanceBefore = 200.0m
+        };
+        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
+                .ReturnsAsync(lastEntry);
+        mockRepo.Setup(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()))
+                .ThrowsAsync(new InvalidOperationException("Database error during withdrawal"));
+
+        var service = new OnlineWalletService(mockRepo.Object);
+        var withdrawal = new Withdrawal
+        {
+            Amount = 50.0m
+        };
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.WithdrawFundsAsync(withdrawal));
+
+        // Assert
+        Assert.Equal("Database error during withdrawal", exception.Message);
+        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WithdrawFundsAsync_GetLastOnlineWalletEntryThrows_PropagatesException()
+    {
+        // Arrange
+        var mockRepo = new Mock<IOnlineWalletRepository>();
+        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
+                .ThrowsAsync(new InvalidOperationException("GetLast failed"));
+
+        var service = new OnlineWalletService(mockRepo.Object);
+        var withdrawal = new Withdrawal
+        {
+            Amount = 10.0m
+        };
+
+        // Act
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.WithdrawFundsAsync(withdrawal));
+
+        // Assert
+        Assert.Equal("GetLast failed", exception.Message);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
+        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
+    }
 }
