@@ -35,6 +35,11 @@ public class CustomWebApplicationFactory<TStartup> : WebApplicationFactory<TStar
 
     internal void SetupWalletData(Action<OnlineWalletContext> initializer)
     {
+        if (initializer == null)
+        {
+            throw new ArgumentNullException(nameof(initializer));
+        }
+
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OnlineWalletContext>();
         initializer(db);
