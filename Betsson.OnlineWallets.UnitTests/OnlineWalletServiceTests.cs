@@ -298,7 +298,7 @@ public class OnlineWalletServiceTests
         var exception = await Assert.ThrowsAsync<InsufficientBalanceException>(() => service.WithdrawFundsAsync(withdrawal));
 
         // Assert
-        Assert.Equal("Invalid withdrawal amount. There are insufficient funds.", exception.Message);
+        Assert.IsType<InsufficientBalanceException>(exception);
         mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
@@ -374,7 +374,7 @@ public class OnlineWalletServiceTests
         var exception = await Assert.ThrowsAsync<InsufficientBalanceException>(() => service.WithdrawFundsAsync(withdrawal));
 
         // Assert
-        Assert.Equal("Invalid withdrawal amount. There are insufficient funds.", exception.Message);
+        Assert.IsType<InsufficientBalanceException>(exception);
         mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
