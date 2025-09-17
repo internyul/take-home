@@ -26,3 +26,20 @@ jobs:
       
     - name: Test
       run: dotnet test --no-build --verbosity normal
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test target (runs tests with coverage)
+        run: |
+          docker build -f src/Betsson.OnlineWallets.Web/Dockerfile --target test -t wallet-tests .
+
+      - name: Build production image
+        run: |
+          docker build -f src/Betsson.OnlineWallets.Web/Dockerfile -t wallet-web .

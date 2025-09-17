@@ -99,6 +99,7 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal(expectedNewBalance, newBalance.Amount);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
             entry.Amount == depositAmount &&
             entry.BalanceBefore == lastAmount + lastBalanceBefore
@@ -156,8 +157,34 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal("GetLast failed", exception.Message);
-        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
+    }
+
+    [Fact]
+    [Trait("Category", "Deposit")]
+    public async Task DepositFundsAsync_NoPreviousTransactions_StartsFromZero()
+    {
+        // Arrange
+        var mockRepo = new Mock<IOnlineWalletRepository>();
+        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
+                .ReturnsAsync((OnlineWalletEntry?)null);
+        mockRepo.Setup(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()))
+                .Returns(Task.CompletedTask);
+
+        var service = new OnlineWalletService(mockRepo.Object);
+        var deposit = new Deposit { Amount = 50.0m };
+
+        // Act
+        var newBalance = await service.DepositFundsAsync(deposit);
+
+        // Assert
+        Assert.Equal(50.0m, newBalance.Amount);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
+        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
+            entry.Amount == 50.0m &&
+            entry.BalanceBefore == 0.0m
+        )), Times.Once);
     }
 
     [Theory]
@@ -186,6 +213,7 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal(expectedNewBalance, newBalance.Amount);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
             entry.Amount == -withdrawalAmount &&
             entry.BalanceBefore == lastAmount + lastBalanceBefore
