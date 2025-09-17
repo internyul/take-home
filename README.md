@@ -21,3 +21,13 @@ docker run -p <port>:8080 <image id>
 ```
 http://localhost:<port>/swagger/index.html
 ```
+### Using `Makefile`:
+
+```
+make build         # dotnet build (Release)
+make test          # dotnet test
+make coverage      # dotnet test with coverage to ./TestResults
+make docker-test   # docker build --target test (runs tests in Docker)
+make docker-build  # docker build production image
+make docker-run    # run image (maps PORT=8080 by default)
+```
