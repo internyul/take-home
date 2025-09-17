@@ -20,19 +20,19 @@ public class OnlineWalletApiTests
         _httpClient = _factory.CreateClient();
     }
 
-    private void AddWalletEntry(decimal resultingBalance, decimal balanceBefore = 0m) =>
+    private void AddWalletEntry(decimal amount, decimal balanceBefore = 0m) =>
         _factory.SetupWalletData(db =>
         {
             db.Transactions.Add(new OnlineWalletEntry
             {
-                Amount = resultingBalance,
+                Amount = amount,
                 BalanceBefore = balanceBefore,
                 EventTime = DateTimeOffset.UtcNow
             });
         });
 
     [Fact]
-    public async Task GetBalance_EmptyWallet_ReturnsZero()
+    public async Task GetBalance_EmptyWallet_ReturnsOkWithZeroBalance()
     {
         // Act
         var response = await _httpClient.GetAsync("/OnlineWallet/Balance");
