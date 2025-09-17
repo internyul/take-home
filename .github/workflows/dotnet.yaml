@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
 jobs:
   build:
 
@@ -25,7 +30,30 @@ jobs:
       run: dotnet build --no-restore
       
     - name: Test
-      run: dotnet test --no-build --verbosity normal
+      run: |
+        dotnet test \
+          --no-build \
+          --verbosity normal \
+          --logger "trx;LogFileName=test_results.trx" \
+          --results-directory TestResults
+
+    - name: Upload test results artifacts
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: TestResults/**/*.trx
+        if-no-files-found: warn
+
+    - name: Test Report
+      if: ${{ always() }}
+      uses: dorny/test-reporter@v2
+      with:
+        name: .NET Tests
+        path: TestResults/**/*.trx
+        reporter: dotnet-trx
+        use-actions-summary: true
+        fail-on-error: false
 
   docker-smoke:
     runs-on: ubuntu-latest
