@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Mime;
 using System.Text.Json;
 using Betsson.OnlineWallets.Data.Models;
 using Betsson.OnlineWallets.Web.Models;
@@ -19,8 +20,19 @@ public class OnlineWalletApiTests
         _httpClient = _factory.CreateClient();
     }
 
+    private void AddWalletEntry(decimal resultingBalance, decimal balanceBefore = 0m) =>
+        _factory.SetupWalletData(db =>
+        {
+            db.Transactions.Add(new OnlineWalletEntry
+            {
+                Amount = resultingBalance,
+                BalanceBefore = balanceBefore,
+                EventTime = DateTimeOffset.UtcNow
+            });
+        });
+
     [Fact]
-    public async Task GetBalance_EmptyWallet_ReturnsOk()
+    public async Task GetBalance_EmptyWallet_ReturnsZero()
     {
         // Act
         var response = await _httpClient.GetAsync("/OnlineWallet/Balance");
@@ -35,15 +47,7 @@ public class OnlineWalletApiTests
     public async Task GetBalance_ValidWallet_ReturnsOk()
     {
         // Arrange
-        _factory.SetupWalletData(db =>
-        {
-            db.Transactions.Add(new OnlineWalletEntry
-            {
-                Amount = 100.0m,
-                BalanceBefore = 0.0m,
-                EventTime = DateTimeOffset.UtcNow
-            });
-        });
+        AddWalletEntry(100.0m);
 
         // Act
         var response = await _httpClient.GetAsync("/OnlineWallet/Balance");
@@ -51,6 +55,7 @@ public class OnlineWalletApiTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(MediaTypeNames.Application.Json, response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(100.0m, balance?.Amount);
     }
 
@@ -66,37 +71,91 @@ public class OnlineWalletApiTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(MediaTypeNames.Application.Json, response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(100.0m, balance?.Amount);
     }
 
     [Fact]
-    public async Task Deposit_Negative_Amount_Returns_Bad_Request()
+    public async Task Deposit_NegativeAmount_ReturnsBadRequest()
     {
         // Arrange
         var deposit = new DepositRequest { Amount = -200m };
 
         // Act
         var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
+        var errorContent = await response.Content.ReadAsStringAsync();
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("'Amount' must be greater than or equal to '0'.", errorContent);
+    }
+
+    [Fact]
+    public async Task Deposit_ZeroAmount_ReturnsBadRequest()
+    {
+        // Arrange
+        var deposit = new DepositRequest { Amount = 0m };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
+        var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0.0m, balance?.Amount);
+    }
+
+    [Fact]
+    public async Task Deposit_LargeAmount_ReturnsOk()
+    {
+        // Arrange
+        var deposit = new DepositRequest { Amount = 1_000_000_000m };
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
+        var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1_000_000_000m, balance?.Amount);
+    }
+
+    [Fact]
+    public async Task Deposit_FractionalAmounts_AreRoundedCorrectly()
+    {
+        // Arrange
+        var deposit = new DepositRequest { Amount = 0.015m };
+        var deposit2 = new DepositRequest { Amount = 0.005m };
+
+        // Act
+        await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
+        var response2 = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit2);
+        var balance = await response2.Content.ReadFromJsonAsync<BalanceResponse>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response2.StatusCode);
+        Assert.Equal(0.02m, balance?.Amount);
+    }
+
+    [Fact]
+    public async Task Deposit_EmptyRequest_ReturnsBadRequest()
+    {
+        // Act
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", null as DepositRequest);
+        var errorContent = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("A non-empty request body is required.", errorContent);
     }
 
     [Fact]
     public async Task Withdraw_ValidRequest_ReturnsOk()
     {
         // Arrange
-        var withdraw = new WithdrawalRequest { Amount = 200.0m };
+        var withdraw = new WithdrawalRequest { Amount = 100.0m };
 
-        _factory.SetupWalletData(db =>
-        {
-            db.Transactions.Add(new OnlineWalletEntry
-            {
-                Amount = 200.0m,
-                BalanceBefore = 0.0m,
-                EventTime = DateTimeOffset.UtcNow
-            });
-        });
+        AddWalletEntry(200.0m);
 
         // Act
         var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
@@ -104,7 +163,26 @@ public class OnlineWalletApiTests
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(0m, balance?.Amount);
+        Assert.Equal(MediaTypeNames.Application.Json, response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(100.0m, balance?.Amount);
+    }
+
+
+    [Fact]
+    public async Task Withdraw_ZeroAmount_ReturnsOk()
+    {
+        // Arrange
+        var withdraw = new WithdrawalRequest { Amount = 0m };
+
+        AddWalletEntry(200.0m);
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
+        var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(200.0m, balance?.Amount);
     }
 
     [Fact]
@@ -113,15 +191,7 @@ public class OnlineWalletApiTests
         // Arrange
         var withdraw = new WithdrawalRequest { Amount = 100.01m };
 
-        _factory.SetupWalletData(db =>
-        {
-            db.Transactions.Add(new OnlineWalletEntry
-            {
-                Amount = 100.0m,
-                BalanceBefore = 0.0m,
-                EventTime = DateTimeOffset.UtcNow
-            });
-        });
+        AddWalletEntry(100.0m);
 
         // Act
         var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
@@ -132,6 +202,40 @@ public class OnlineWalletApiTests
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("InsufficientBalanceException", typeValue);
+    }
+
+    [Fact]
+    public async Task Withdraw_NegativeAmount_ReturnsBadRequest()
+    {
+        // Arrange
+        var withdraw = new WithdrawalRequest { Amount = -100m };
+        AddWalletEntry(100.0m);
+
+        // Act
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
+        var errorContent = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("'Amount' must be greater than or equal to '0'.", errorContent);
+    }
+
+    [Fact]
+    public async Task Withdraw_SequentialWithdrawals_ReturnsZero()
+    {
+        // Arrange
+        var withdraw1 = new WithdrawalRequest { Amount = 100m };
+        var withdraw2 = new WithdrawalRequest { Amount = 100m };
+        AddWalletEntry(200.0m);
+
+        // Act
+        await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw1);
+        var response2 = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw2);
+        var balance = await response2.Content.ReadFromJsonAsync<BalanceResponse>();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response2.StatusCode);
+        Assert.Equal(0.0m, balance?.Amount);
     }
 
     [Fact]
