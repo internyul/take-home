@@ -32,6 +32,7 @@ public class OnlineWalletApiTests
         });
 
     [Fact]
+    [Trait("Category", "Balance")]
     public async Task GetBalance_EmptyWallet_ReturnsOkWithZeroBalance()
     {
         // Act
@@ -44,6 +45,7 @@ public class OnlineWalletApiTests
     }
 
     [Fact]
+    [Trait("Category", "Balance")]
     public async Task GetBalance_ValidWallet_ReturnsOk()
     {
         // Arrange
@@ -59,23 +61,25 @@ public class OnlineWalletApiTests
         Assert.Equal(100.0m, balance?.Amount);
     }
 
-    [Fact]
-    public async Task Deposit_ValidRequest_ReturnsOk()
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(100, 100)]
+    [InlineData(1000000000, 1000000000)]
+    [Trait("Category", "Deposit")]
+    public async Task Deposit_Amount_Scenarios_ReturnsOk(decimal amount, decimal expectedBalance)
     {
-        // Arrange
-        var deposit = new DepositRequest { Amount = 100.0m };
-
         // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", new DepositRequest { Amount = amount });
         var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(MediaTypeNames.Application.Json, response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(100.0m, balance?.Amount);
+        Assert.Equal(expectedBalance, balance?.Amount);
     }
 
     [Fact]
+    [Trait("Category", "Deposit")]
     public async Task Deposit_NegativeAmount_ReturnsBadRequest()
     {
         // Arrange
@@ -91,36 +95,20 @@ public class OnlineWalletApiTests
     }
 
     [Fact]
-    public async Task Deposit_ZeroAmount_ReturnsBadRequest()
+    [Trait("Category", "Deposit")]
+    public async Task Deposit_EmptyRequest_ReturnsBadRequest()
     {
-        // Arrange
-        var deposit = new DepositRequest { Amount = 0m };
-
         // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
-        var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", null as DepositRequest);
+        var errorContent = await response.Content.ReadAsStringAsync();
 
         // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(0.0m, balance?.Amount);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("A non-empty request body is required.", errorContent);
     }
 
     [Fact]
-    public async Task Deposit_LargeAmount_ReturnsOk()
-    {
-        // Arrange
-        var deposit = new DepositRequest { Amount = 1_000_000_000m };
-
-        // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", deposit);
-        var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(1_000_000_000m, balance?.Amount);
-    }
-
-    [Fact]
+    [Trait("Category", "Deposit")]
     public async Task Deposit_FractionalAmounts_AreRoundedCorrectly()
     {
         // Arrange
@@ -138,54 +126,43 @@ public class OnlineWalletApiTests
     }
 
     [Fact]
-    public async Task Deposit_EmptyRequest_ReturnsBadRequest()
+    [Trait("Category", "Withdraw")]
+    public async Task Withdraw_NegativeAmount_ReturnsBadRequest()
     {
+        // Arrange
+        var withdraw = new WithdrawalRequest { Amount = -100m };
+        AddWalletEntry(100.0m);
+
         // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Deposit", null as DepositRequest);
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
         var errorContent = await response.Content.ReadAsStringAsync();
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("A non-empty request body is required.", errorContent);
+        Assert.Contains("'Amount' must be greater than or equal to '0'.", errorContent);
     }
 
-    [Fact]
-    public async Task Withdraw_ValidRequest_ReturnsOk()
+    [Theory]
+    [InlineData(0, 200)]
+    [InlineData(100, 100)]
+    [Trait("Category", "Withdraw")]
+    public async Task Withdraw_Amount_Scenarios_ReturnsOk(decimal amount, decimal expectedBalance)
     {
         // Arrange
-        var withdraw = new WithdrawalRequest { Amount = 100.0m };
-
         AddWalletEntry(200.0m);
 
         // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
+        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", new WithdrawalRequest { Amount = amount });
         var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(MediaTypeNames.Application.Json, response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(100.0m, balance?.Amount);
-    }
-
-
-    [Fact]
-    public async Task Withdraw_ZeroAmount_ReturnsOk()
-    {
-        // Arrange
-        var withdraw = new WithdrawalRequest { Amount = 0m };
-
-        AddWalletEntry(200.0m);
-
-        // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
-        var balance = await response.Content.ReadFromJsonAsync<BalanceResponse>();
-
-        // Assert
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(200.0m, balance?.Amount);
+        Assert.Equal(expectedBalance, balance?.Amount);
     }
 
     [Fact]
+    [Trait("Category", "Withdraw")]
     public async Task Withdraw_InsufficientFunds_ReturnsBadRequest()
     {
         // Arrange
@@ -205,22 +182,7 @@ public class OnlineWalletApiTests
     }
 
     [Fact]
-    public async Task Withdraw_NegativeAmount_ReturnsBadRequest()
-    {
-        // Arrange
-        var withdraw = new WithdrawalRequest { Amount = -100m };
-        AddWalletEntry(100.0m);
-
-        // Act
-        var response = await _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdraw);
-        var errorContent = await response.Content.ReadAsStringAsync();
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("'Amount' must be greater than or equal to '0'.", errorContent);
-    }
-
-    [Fact]
+    [Trait("Category", "Withdraw")]
     public async Task Withdraw_SequentialWithdrawals_ReturnsZero()
     {
         // Arrange
@@ -238,7 +200,28 @@ public class OnlineWalletApiTests
         Assert.Equal(0.0m, balance?.Amount);
     }
 
+    [Fact(Skip = "To discuss")]
+    [Trait("Category", "Withdraw")]
+    public async Task Withdraw_ConcurrentRequests_OnlyOneSucceeds()
+    {
+        // Arrange
+        AddWalletEntry(150.0m);
+
+        var withdrawRequest = new WithdrawalRequest { Amount = 100.0m };
+
+        // Act
+        var task1 = _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdrawRequest);
+        var task2 = _httpClient.PostAsJsonAsync("/OnlineWallet/Withdraw", withdrawRequest);
+
+        var responses = await Task.WhenAll(task1, task2);
+
+        // Assert
+        Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Contains(responses, r => r.StatusCode == HttpStatusCode.BadRequest);
+    }
+
     [Fact]
+    [Trait("Category", "Flow")]
     public async Task Deposit_Then_Withdraw_ReturnsCorrectBalance()
     {
         // Arrange
@@ -260,6 +243,7 @@ public class OnlineWalletApiTests
     }
 
     [Fact]
+    [Trait("Category", "Flow")]
     public async Task Deposit_Then_GetBalance_ReturnsCorrectBalance()
     {
         // Arrange

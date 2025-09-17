@@ -10,6 +10,7 @@ namespace Betsson.OnlineWallets.UnitTests;
 public class OnlineWalletServiceTests
 {
     [Fact]
+    [Trait("Category", "Balance")]
     public async Task GetBalanceAsync_NoTransactions_ReturnsZero()
     {
         // Arrange
@@ -27,15 +28,18 @@ public class OnlineWalletServiceTests
         mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
     }
 
-    [Fact]
-    public async Task GetBalanceAsync_WithTransactions_ReturnsCorrectBalance()
+    [Theory]
+    [Trait("Category", "Balance")]
+    [InlineData(100.25, 200.0, 300.25)]
+    [InlineData(-50.75, 150.0, 99.25)]
+    public async Task GetBalanceAsync_WithTransactions_ReturnsExpectedBalance(decimal lastAmount, decimal lastBalanceBefore, decimal expected)
     {
         // Arrange
         var mockRepo = new Mock<IOnlineWalletRepository>();
         var lastEntry = new OnlineWalletEntry
         {
-            Amount = 100.25m,
-            BalanceBefore = 200.0m
+            Amount = lastAmount,
+            BalanceBefore = lastBalanceBefore
         };
         mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
                 .ReturnsAsync(lastEntry);
@@ -46,34 +50,12 @@ public class OnlineWalletServiceTests
         var balance = await service.GetBalanceAsync();
 
         // Assert
-        Assert.Equal(300.25m, balance.Amount);
+        Assert.Equal(expected, balance.Amount);
         mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task GetBalanceAsync_LastTransactionNegative_ReturnsCorrectBalance()
-    {
-        // Arrange
-        var mockRepo = new Mock<IOnlineWalletRepository>();
-        var lastEntry = new OnlineWalletEntry
-        {
-            Amount = -50.75m,
-            BalanceBefore = 150.0m
-        };
-        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
-                .ReturnsAsync(lastEntry);
-
-        var service = new OnlineWalletService(mockRepo.Object);
-
-        // Act
-        var balance = await service.GetBalanceAsync();
-
-        // Assert
-        Assert.Equal(99.25m, balance.Amount);
-        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
-    }
-
-    [Fact]
+    [Trait("Category", "Balance")]
     public async Task GetBalanceAsync_RepositoryThrows_PropagatesException()
     {
         // Arrange
@@ -91,15 +73,18 @@ public class OnlineWalletServiceTests
         mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
     }
 
-    [Fact]
-    public async Task DepositFundsAsync_ValidDeposit_UpdatesBalance()
+    [Theory]
+    [Trait("Category", "Deposit")]
+    [InlineData(50.0, 150.0, 75.0, 275.0)]
+    [InlineData(100.0, 200.0, 0.0, 300.0)]
+    public async Task DepositFundsAsync_DepositAmount_UpdatesBalance(decimal lastAmount, decimal lastBalanceBefore, decimal depositAmount, decimal expectedNewBalance)
     {
         // Arrange
         var mockRepo = new Mock<IOnlineWalletRepository>();
         var lastEntry = new OnlineWalletEntry
         {
-            Amount = 50.0m,
-            BalanceBefore = 150.0m
+            Amount = lastAmount,
+            BalanceBefore = lastBalanceBefore
         };
         mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
                 .ReturnsAsync(lastEntry);
@@ -107,56 +92,21 @@ public class OnlineWalletServiceTests
                 .Returns(Task.CompletedTask);
 
         var service = new OnlineWalletService(mockRepo.Object);
-        var deposit = new Deposit
-        {
-            Amount = 75.0m
-        };
+        var deposit = new Deposit { Amount = depositAmount };
 
         // Act
         var newBalance = await service.DepositFundsAsync(deposit);
 
         // Assert
-        Assert.Equal(275.0m, newBalance.Amount);
+        Assert.Equal(expectedNewBalance, newBalance.Amount);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
-            entry.Amount == 75.0m &&
-            entry.BalanceBefore == 200.0m
+            entry.Amount == depositAmount &&
+            entry.BalanceBefore == lastAmount + lastBalanceBefore
         )), Times.Once);
     }
 
     [Fact]
-    public async Task DepositFundsAsync_ZeroDeposit_NoBalanceChange()
-    {
-        // Arrange
-        var mockRepo = new Mock<IOnlineWalletRepository>();
-        var lastEntry = new OnlineWalletEntry
-        {
-            Amount = 100.0m,
-            BalanceBefore = 200.0m
-        };
-
-        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
-                .ReturnsAsync(lastEntry);
-        mockRepo.Setup(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()))
-                .Returns(Task.CompletedTask);
-
-        var service = new OnlineWalletService(mockRepo.Object);
-        var deposit = new Deposit
-        {
-            Amount = 0.0m
-        };
-
-        // Act
-        var newBalance = await service.DepositFundsAsync(deposit);
-
-        // Assert
-        Assert.Equal(300.0m, newBalance.Amount);
-        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
-            entry.Amount == 0.0m &&
-            entry.BalanceBefore == 300.0m
-        )), Times.Once);
-    }
-
-    [Fact]
+    [Trait("Category", "Deposit")]
     public async Task DepositFundsAsync_RepositoryThrows_PropagatesException()
     {
         // Arrange
@@ -187,6 +137,7 @@ public class OnlineWalletServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Deposit")]
     public async Task DepositFundsAsync_GetLastOnlineWalletEntryThrows_PropagatesException()
     {
         // Arrange
@@ -209,15 +160,18 @@ public class OnlineWalletServiceTests
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
     }
 
-    [Fact]
-    public async Task WithdrawFundsAsync_SufficientBalance_UpdatesBalance()
+    [Theory]
+    [Trait("Category", "Withdraw")]
+    [InlineData(100.0, 50.0, 75.0, 75.0)]
+    [InlineData(200.0, 100.0, 300.0, 0.0)]
+    public async Task WithdrawFundsAsync_Amount_UpdatesBalance(decimal lastAmount, decimal lastBalanceBefore, decimal withdrawalAmount, decimal expectedNewBalance)
     {
         // Arrange
         var mockRepo = new Mock<IOnlineWalletRepository>();
         var lastEntry = new OnlineWalletEntry
         {
-            Amount = 100.0m,
-            BalanceBefore = 50.0m
+            Amount = lastAmount,
+            BalanceBefore = lastBalanceBefore
         };
         mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
                 .ReturnsAsync(lastEntry);
@@ -225,55 +179,21 @@ public class OnlineWalletServiceTests
                 .Returns(Task.CompletedTask);
 
         var service = new OnlineWalletService(mockRepo.Object);
-        var withdrawal = new Withdrawal
-        {
-            Amount = 75.0m
-        };
+        var withdrawal = new Withdrawal { Amount = withdrawalAmount };
 
         // Act
         var newBalance = await service.WithdrawFundsAsync(withdrawal);
 
         // Assert
-        Assert.Equal(75.0m, newBalance.Amount);
+        Assert.Equal(expectedNewBalance, newBalance.Amount);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
-            entry.Amount == -75.0m &&
-            entry.BalanceBefore == 150.0m
+            entry.Amount == -withdrawalAmount &&
+            entry.BalanceBefore == lastAmount + lastBalanceBefore
         )), Times.Once);
     }
 
     [Fact]
-    public async Task WithdrawFundsAsync_ExactBalance_ResultsInZeroBalance()
-    {
-        // Arrange
-        var mockRepo = new Mock<IOnlineWalletRepository>();
-        var lastEntry = new OnlineWalletEntry
-        {
-            Amount = 200.0m,
-            BalanceBefore = 100.0m
-        };
-        mockRepo.Setup(repo => repo.GetLastOnlineWalletEntryAsync())
-                .ReturnsAsync(lastEntry);
-        mockRepo.Setup(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()))
-                .Returns(Task.CompletedTask);
-
-        var service = new OnlineWalletService(mockRepo.Object);
-        var withdrawal = new Withdrawal
-        {
-            Amount = 300.0m
-        };
-
-        // Act
-        var newBalance = await service.WithdrawFundsAsync(withdrawal);
-
-        // Assert
-        Assert.Equal(0.0m, newBalance.Amount);
-        mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.Is<OnlineWalletEntry>(entry =>
-            entry.Amount == -300.0m &&
-            entry.BalanceBefore == 300.0m
-        )), Times.Once);
-    }
-
-    [Fact]
+    [Trait("Category", "Withdraw")]
     public async Task WithdrawFundsAsync_InsufficientBalance_ThrowsInsufficientBalanceException()
     {
         // Arrange
@@ -304,6 +224,7 @@ public class OnlineWalletServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Withdraw")]
     public async Task WithdrawFundsAsync_RepositoryThrows_PropagatesException()
     {
         // Arrange
@@ -334,6 +255,7 @@ public class OnlineWalletServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Withdraw")]
     public async Task WithdrawFundsAsync_GetLastOnlineWalletEntryThrows_PropagatesException()
     {
         // Arrange
@@ -357,6 +279,7 @@ public class OnlineWalletServiceTests
     }
 
     [Fact]
+    [Trait("Category", "Withdraw")]
     public async Task WithdrawFundsAsync_NoPreviousTransactions_ThrowsInsufficientBalanceException()
     {
         // Arrange
