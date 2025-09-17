@@ -1,9 +1,9 @@
-using Moq;
-using Betsson.OnlineWallets.Services;
-using Betsson.OnlineWallets.Data.Repositories;
 using Betsson.OnlineWallets.Data.Models;
-using Betsson.OnlineWallets.Models;
+using Betsson.OnlineWallets.Data.Repositories;
 using Betsson.OnlineWallets.Exceptions;
+using Betsson.OnlineWallets.Models;
+using Betsson.OnlineWallets.Services;
+using Moq;
 
 namespace Betsson.OnlineWallets.UnitTests;
 
