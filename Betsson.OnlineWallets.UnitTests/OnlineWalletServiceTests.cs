@@ -157,8 +157,8 @@ public class OnlineWalletServiceTests
 
         // Assert
         Assert.Equal("GetLast failed", exception.Message);
-        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
         mockRepo.Verify(repo => repo.InsertOnlineWalletEntryAsync(It.IsAny<OnlineWalletEntry>()), Times.Never);
+        mockRepo.Verify(repo => repo.GetLastOnlineWalletEntryAsync(), Times.Once);
     }
 
     [Fact]
